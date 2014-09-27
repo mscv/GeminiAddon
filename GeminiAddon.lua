@@ -15,7 +15,7 @@
 -- General flow should be:
 -- OnInitialize -> OnEnable 
 
-local MAJOR, MINOR = "Gemini:Addon-1.1", 6
+local MAJOR, MINOR = "Gemini:Addon-1.1", 999
 local APkg = Apollo.GetPackage(MAJOR)
 if APkg and (APkg.nVersion or 0) >= MINOR then
 	return -- no upgrade is needed
@@ -98,10 +98,10 @@ local EmbedModule, EnableModule, DisableModule, NewModule, GetModule, SetDefault
 
 -- delay the firing the OnEnable callback until after Character is in world
 -- and OnRestore would have occured
-local function DelayedEnable(oAddon)
+local function DelayedEnable(oAddon, bForce)
 	local strName = oAddon:GetName()
 
-	if GameLib.GetPlayerUnit() == nil then
+	if GameLib.GetPlayerUnit() == nil and not bForce then
 		-- If the Player Unit doesn't exist we wait for the CharacterCreated event instead
 		GeminiAddon.Timers[strName] = nil
 		Apollo.RegisterEventHandler("CharacterCreated", "___OnDelayEnable", oAddon)
@@ -231,7 +231,7 @@ function GeminiAddon:NewAddon(oAddonOrName, ...)
 	-- Setup callbacks for the addon
 	-- Setup the OnLoad callback handler to initialize the addon
 	-- and delay enable the addon
-	oAddon.OnLoad = function(self)
+	oAddon.OnLoad = function(self, bForce)
 		local strName = self:GetName()
 		local tInitQueue = GeminiAddon.InitializeQueue[strName]
 		while #tInitQueue > 0 do
@@ -244,9 +244,13 @@ function GeminiAddon:NewAddon(oAddonOrName, ...)
 			tinsert(GeminiAddon.EnableQueue[strName], oAddonToInit)
 		end
 		GeminiAddon.InitializeQueue[strName] = nil
-		self.___OnDelayEnable = function() DelayedEnable(self) end
-		-- Wait 0 seconds (hah?) this allows OnRestore to have occured
-		GeminiAddon.Timers[strName] = ApolloTimer.Create(0, false, "___OnDelayEnable",self)
+		if bForce then
+			DelayedEnable(self, bForce)
+		else
+			self.___OnDelayEnable = function() DelayedEnable(self) end
+			-- Wait 0 seconds (hah?) this allows OnRestore to have occured
+			GeminiAddon.Timers[strName] = ApolloTimer.Create(0, false, "___OnDelayEnable",self)
+		end
 	end
 
 	-- Register with Apollo
